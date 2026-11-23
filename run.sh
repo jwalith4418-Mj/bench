@@ -5,12 +5,13 @@
 set -euo pipefail
 Q=${1:-questions.jsonl}; OUT=${2:-answers.jsonl}
 command -v pauhu >/dev/null || { echo "pauhu CLI not found: npm i -g github:pauhu/cli" >&2; exit 2; }
-: > "$OUT"
+: > "$OUT"; fails=0
 while IFS= read -r line; do
   [ -n "$line" ] || continue
   id=$(printf '%s' "$line" | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
   q=$(printf '%s' "$line" | python3 -c 'import json,sys;print(json.load(sys.stdin)["question"])')
-  a=$(pauhu ask "$q" 2>/dev/null) || a=""
-  python3 -c 'import json,sys;print(json.dumps({"id":sys.argv[1],"answer":sys.argv[2],"abstain":False},ensure_ascii=False))' "$id" "$a" >> "$OUT"
+  err=false; a=$(pauhu ask "$q" 2>/dev/null) || { a=""; err=true; fails=$((fails+1)); }
+  python3 -c 'import json,sys;print(json.dumps({"id":sys.argv[1],"answer":sys.argv[2],"abstain":False,"error":sys.argv[3]=="true"},ensure_ascii=False))' "$id" "$a" "$err" >> "$OUT"
   echo "$id done" >&2
 done < "$Q"
+if [ "$fails" -gt 0 ]; then echo "$fails question(s) got no answer (marked error); the run is incomplete" >&2; exit 1; fi
