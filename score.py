@@ -110,11 +110,17 @@ def bad_question(q):
         if not isinstance(h, dict) or not all(_str(k) and isinstance(v, str) for k, v in h.items()): return "origin headers must map strings to strings"
     return None
 
+def _jsonl(path):
+    for n, l in enumerate(open(path), 1):
+        if not l.strip(): continue
+        try: yield l, json.loads(l)
+        except json.JSONDecodeError as e: sys.exit(f"{path}:{n}: not valid JSON ({e.msg})")
+
 def main():
     flags = [x for x in sys.argv[1:] if x.startswith("--")]; args = [x for x in sys.argv[1:] if not x.startswith("--")]
     if len(args) != 2 or set(flags) - {"--offline"}: sys.exit(__doc__)
     offline = "--offline" in flags
-    qs = [json.loads(l) for l in open(args[0]) if l.strip()]
+    qs = [q for _, q in _jsonl(args[0])]
     if any(not isinstance(q, dict) or not isinstance(q.get("id"), str) for q in qs): sys.exit("each question needs a string id")
     ids = [q["id"] for q in qs]
     if len(ids) != len(set(ids)): sys.exit("duplicate question id")
@@ -122,9 +128,7 @@ def main():
         e = bad_question(q)
         if e: sys.exit(f"bad question {q.get('id') if isinstance(q, dict) else q!r}: {e}")
     ans = {}
-    for l in open(args[1]):
-        if not l.strip(): continue
-        r = json.loads(l)
+    for l, r in _jsonl(args[1]):
         if not isinstance(r, dict) or not isinstance(r.get("id"), str): sys.exit(f"answer row is not an object with a string id: {l.strip()[:80]}")
         if not isinstance(r.get("answer", ""), str) or not isinstance(r.get("abstain", False), bool) or not isinstance(r.get("error", False), bool):
             sys.exit(f"answer row {r['id']}: answer must be a string, abstain and error booleans")
