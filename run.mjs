@@ -20,17 +20,27 @@ function cliScript() {
 const script = cliScript();
 writeFileSync(out, '');
 let fails = 0;
+const timeout = Number(process.env.PAUHU_ASK_TIMEOUT_MS) || 300000; // per question
+let n = 0;
 for (const line of readFileSync(q, 'utf8').split('\n')) {
   if (!line.trim()) continue;
-  const { id, question } = JSON.parse(line);
-  const r = spawnSync(process.execPath, [script, 'ask', question], { encoding: 'utf8', maxBuffer: 16 << 20 });
-  const error = r.status !== 0 || !!r.error;
-  const row = { id, answer: error ? '' : (r.stdout || '').trimEnd(), abstain: false, error };
-  if (error) {
-    fails++;
-    row.reason = (r.error?.message || r.stderr || '').split('\n').find(Boolean) || `exit ${r.status}`;
-    console.error(`${id} error: ${row.reason}`);
-  } else console.error(`${id} done`);
+  n++;
+  let id = `line-${n}`, question;
+  try { ({ id = id, question } = JSON.parse(line)); } catch { question = undefined; }
+  let row;
+  if (typeof id !== 'string' || typeof question !== 'string' || !question.trim()) {
+    row = { id: String(id), answer: '', abstain: false, error: true, reason: 'bad input line: needs string id and question' };
+  } else {
+    const r = spawnSync(process.execPath, [script, 'ask', question], { encoding: 'utf8', maxBuffer: 16 << 20, timeout });
+    const answer = (r.stdout || '').trimEnd();
+    const why = r.error?.code === 'ETIMEDOUT' ? `no answer within ${timeout} ms`
+      : r.error ? r.error.message
+      : r.status !== 0 ? ((r.stderr || '').split('\n').find(Boolean) || `exit ${r.status}`)
+      : !answer ? 'empty answer' : null;
+    row = { id, answer: why ? '' : answer, abstain: false, error: !!why };
+    if (why) row.reason = why;
+  }
+  if (row.error) { fails++; console.error(`${row.id} error: ${row.reason}`); } else console.error(`${row.id} done`);
   appendFileSync(out, JSON.stringify(row) + '\n');
 }
 if (fails) { console.error(`${fails} question(s) got no answer (marked error); the run is incomplete`); process.exit(1); }
