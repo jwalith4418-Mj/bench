@@ -41,6 +41,15 @@ python3 score.py questions.jsonl answers.jsonl
 
 `tests/adversarial.py` checks the known tricks the scorer does catch; `tests/malformed.py` checks that bad input is refused cleanly.
 
+Run both offline regression checks with one command (no API key or model needed):
+
+```sh
+python3 check.py
+```
+
+The command prints `PASS` only when both checks succeed and exits non-zero if either fails.
+It works from any directory when invoked by path, and uses the current Python interpreter.
+
 ## Licence
 
 The code and question set are under Apache-2.0 (see `LICENSE`). Quoted passages come from EUR-Lex documents of the European Union, reused under Commission Decision 2011/833/EU; the source of each passage is the CELEX number and URL in its question. The EU does not endorse this benchmark.
