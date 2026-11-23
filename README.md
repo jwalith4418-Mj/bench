@@ -16,7 +16,7 @@ A public question set for checking answers that cite their sources. No model gra
 ```sh
 npm i -g github:pauhu/cli
 pauhu key set            # your own developer key
-./run.sh questions.jsonl answers.jsonl
+node run.mjs questions.jsonl answers.jsonl   # Windows, macOS, Linux (or ./run.sh on macOS/Linux)
 python3 score.py questions.jsonl answers.jsonl
 ```
 
