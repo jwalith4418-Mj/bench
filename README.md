@@ -29,6 +29,7 @@ python3 score.py questions.jsonl answers.jsonl
 - `GAP`: the system said it does not know (`"abstain": true`).
 - `ERROR`: the runner got no answer (`"error": true`). A run with errors is incomplete; `run.sh` exits 1.
 - `ORIGIN_CHANGED`: the official page no longer matches the copy the passage was taken from. This counts as neither OK nor WRONG.
+- `ORIGIN_UNREACHABLE`: the official page could not be fetched (network or HTTP error). Rerun later, or use `--offline`.
 
 `--offline` skips re-fetching the official pages.
 
