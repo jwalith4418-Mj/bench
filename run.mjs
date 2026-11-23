@@ -34,11 +34,13 @@ for (const line of readFileSync(q, 'utf8').split('\n')) {
   } else {
     const r = spawnSync(process.execPath, [script, 'ask', question], { encoding: 'utf8', maxBuffer: 16 << 20, timeout });
     const answer = (r.stdout || '').trimEnd();
-    const why = r.error?.code === 'ETIMEDOUT' ? `no answer within ${timeout} ms`
+    // Exit 2 with "No cited answer" on stdout is the CLI declining to answer: an abstention, not an error.
+    const abstain = r.status === 2 && answer.startsWith('No cited answer');
+    const why = abstain ? null : r.error?.code === 'ETIMEDOUT' ? `no answer within ${timeout} ms`
       : r.error ? r.error.message
-      : r.status !== 0 ? ((r.stderr || '').split('\n').find(Boolean) || `exit ${r.status}`)
+      : r.status !== 0 ? ((r.stderr || '').split('\n').filter(Boolean).pop() || `exit ${r.status}`)
       : !answer ? 'empty answer' : null;
-    row = { id, answer: why ? '' : answer, abstain: false, error: !!why };
+    row = { id, answer: why ? '' : answer, abstain, error: !!why };
     if (why) row.reason = why.trim().slice(0, 200);
   }
   if (row.error) { fails++; console.error(`${row.id} error: ${row.reason}`); } else console.error(`${row.id} done`);
