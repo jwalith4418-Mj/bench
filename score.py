@@ -63,14 +63,14 @@ def py_test(a, c):
     return r.returncode == 0 and r.stdout.endswith("PASS " + tok + "\n")
 _cache = {}
 def origin_ok(o):
-    u = o["url"]
-    if u not in _cache:
+    u = o["url"]; k = (u, tuple(sorted(o.get("headers", {}).items())))
+    if k not in _cache:
         try:
             req = urllib.request.Request(u, headers={**o.get("headers", {}), "User-Agent": "pauhu-bench-scorer"})
-            _cache[u] = hashlib.sha256(urllib.request.urlopen(req, timeout=60).read()).hexdigest()
-        except Exception: _cache[u] = None
-    if _cache[u] is None: return "ORIGIN_UNREACHABLE"
-    return _cache[u] == o["sha256"]
+            _cache[k] = hashlib.sha256(urllib.request.urlopen(req, timeout=60).read()).hexdigest()
+        except Exception: _cache[k] = None
+    if _cache[k] is None: return "ORIGIN_UNREACHABLE"
+    return _cache[k] == o["sha256"]
 def cited_span(a, c, offline):
     # Needs one allowed source id and the exact passage inside quotation marks.
     if not any(s in a for s in c["allowed_sources"]): return False
@@ -91,23 +91,43 @@ def score(q, row, offline):
     r = exact(a, c) if t == "exact" else py_test(a, c) if t == "py_test" else cited_span(a, c, offline)
     return r if isinstance(r, str) else ("OK" if r else "WRONG")
 
+def _str(x): return isinstance(x, str) and x != ""
+def bad_question(q):
+    if not _str(q.get("domain")) or not _str(q.get("question")): return "domain and question must be strings"
+    c = q.get("check")
+    if not isinstance(c, dict): return "check must be an object"
+    t = c.get("type")
+    if t == "exact": return None if _str(c.get("expected")) else "exact needs a string expected"
+    if t == "py_test": return None if _str(c.get("test")) else "py_test needs a string test"
+    if t != "cited_span": return "unknown check type"
+    a = c.get("allowed_sources")
+    if not isinstance(a, list) or not a or not all(_str(x) for x in a): return "allowed_sources must be a list of strings"
+    if not _str(c.get("span")): return "span must be a string"
+    if "origin" in c:
+        o = c["origin"]
+        if not isinstance(o, dict) or not _str(o.get("url")) or not re.fullmatch(r"[0-9a-f]{64}", str(o.get("sha256", ""))): return "origin needs url and a sha256 hex digest"
+        h = o.get("headers", {})
+        if not isinstance(h, dict) or not all(_str(k) and isinstance(v, str) for k, v in h.items()): return "origin headers must map strings to strings"
+    return None
+
 def main():
     flags = [x for x in sys.argv[1:] if x.startswith("--")]; args = [x for x in sys.argv[1:] if not x.startswith("--")]
     if len(args) != 2 or set(flags) - {"--offline"}: sys.exit(__doc__)
     offline = "--offline" in flags
     qs = [json.loads(l) for l in open(args[0]) if l.strip()]
+    if any(not isinstance(q, dict) or not isinstance(q.get("id"), str) for q in qs): sys.exit("each question needs a string id")
     ids = [q["id"] for q in qs]
     if len(ids) != len(set(ids)): sys.exit("duplicate question id")
-    NEED = {"exact": {"expected"}, "py_test": {"test"}, "cited_span": {"allowed_sources", "span"}}
     for q in qs:
-        c = q.get("check")
-        if not isinstance(c, dict) or c.get("type") not in NEED: sys.exit(f"unknown check type: {q['id']}")
-        if NEED[c["type"]] - c.keys(): sys.exit(f"check missing {sorted(NEED[c['type']] - c.keys())}: {q['id']}")
-        if "origin" in c and not ({"url", "sha256"} <= c["origin"].keys()): sys.exit(f"origin needs url and sha256: {q['id']}")
+        e = bad_question(q)
+        if e: sys.exit(f"bad question {q.get('id') if isinstance(q, dict) else q!r}: {e}")
     ans = {}
     for l in open(args[1]):
         if not l.strip(): continue
         r = json.loads(l)
+        if not isinstance(r, dict) or not isinstance(r.get("id"), str): sys.exit(f"answer row is not an object with a string id: {l.strip()[:80]}")
+        if not isinstance(r.get("answer", ""), str) or not isinstance(r.get("abstain", False), bool) or not isinstance(r.get("error", False), bool):
+            sys.exit(f"answer row {r['id']}: answer must be a string, abstain and error booleans")
         if r.get("id") not in set(ids): sys.exit(f"answer id not in questions: {r.get('id')}")
         if r["id"] in ans: sys.exit(f"duplicate answer id {r['id']}")
         ans[r["id"]] = r

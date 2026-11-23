@@ -39,7 +39,7 @@ python3 score.py questions.jsonl answers.jsonl
 - Code answers run in a separate process with memory, CPU, file-size and process limits, an empty environment, and no network where the host allows it. That is not a full sandbox. Run untrusted answers in a container or VM.
 - Code runs in the same Python process as its tests, so an answer written to cheat the scorer can fake a pass. Publish your `answers.jsonl` with any score so others can rerun and read it.
 
-`tests/adversarial.py` checks the known tricks the scorer does catch.
+`tests/adversarial.py` checks the known tricks the scorer does catch; `tests/malformed.py` checks that bad input is refused cleanly.
 
 ## Licence
 
