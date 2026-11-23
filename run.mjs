@@ -20,7 +20,8 @@ function cliScript() {
 const script = cliScript();
 writeFileSync(out, '');
 let fails = 0;
-const timeout = Number(process.env.PAUHU_ASK_TIMEOUT_MS) || 300000; // per question
+const t = Number(process.env.PAUHU_ASK_TIMEOUT_MS);
+const timeout = Number.isFinite(t) && t > 0 ? t : 300000; // per question, ms
 let n = 0;
 for (const line of readFileSync(q, 'utf8').split('\n')) {
   if (!line.trim()) continue;
@@ -38,7 +39,7 @@ for (const line of readFileSync(q, 'utf8').split('\n')) {
       : r.status !== 0 ? ((r.stderr || '').split('\n').find(Boolean) || `exit ${r.status}`)
       : !answer ? 'empty answer' : null;
     row = { id, answer: why ? '' : answer, abstain: false, error: !!why };
-    if (why) row.reason = why;
+    if (why) row.reason = why.trim().slice(0, 200);
   }
   if (row.error) { fails++; console.error(`${row.id} error: ${row.reason}`); } else console.error(`${row.id} done`);
   appendFileSync(out, JSON.stringify(row) + '\n');
